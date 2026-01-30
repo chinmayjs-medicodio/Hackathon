@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CampaignForge - Client Onboarding</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <h1>🚀 CampaignForge</h1>
+                <p class="tagline">AI-Powered Marketing Automation Platform</p>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <div class="onboarding-card">
+                <div class="card-header">
+                    <h2>Client Onboarding</h2>
+                    <p>Tell us about your brand to get started with AI-powered marketing automation</p>
+                </div>
+
+                <form id="onboardingForm" class="onboarding-form">
+                    <!-- Basic Information Section -->
+                    <section class="form-section">
+                        <h3 class="section-title">Basic Information</h3>
+                        
+                        <div class="form-group">
+                            <label for="company_name">Company Name <span class="required">*</span></label>
+                            <input type="text" id="company_name" name="company_name" required 
+                                   placeholder="Enter your company name">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="industry">Industry <span class="required">*</span></label>
+                            <select id="industry" name="industry" required>
+                                <option value="">Select your industry</option>
+                                <option value="Technology">Technology</option>
+                                <option value="Healthcare">Healthcare</option>
+                                <option value="Finance">Finance</option>
+                                <option value="E-commerce">E-commerce</option>
+                                <option value="Education">Education</option>
+                                <option value="Real Estate">Real Estate</option>
+                                <option value="Food & Beverage">Food & Beverage</option>
+                                <option value="Fashion">Fashion</option>
+                                <option value="Travel & Tourism">Travel & Tourism</option>
+                                <option value="Entertainment">Entertainment</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="website_url">Website URL</label>
+                            <input type="url" id="website_url" name="website_url" 
+                                   placeholder="https://www.example.com">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="social_media_handles">Social Media Handles</label>
+                            <input type="text" id="social_media_handles" name="social_media_handles" 
+                                   placeholder="e.g., @companyname (Instagram, Twitter, LinkedIn)">
+                        </div>
+                    </section>
+
+                    <!-- Brand Identity Section -->
+                    <section class="form-section">
+                        <h3 class="section-title">Brand Identity</h3>
+                        
+                        <div class="form-group">
+                            <label for="brand_tone">Brand Tone <span class="required">*</span></label>
+                            <select id="brand_tone" name="brand_tone" required>
+                                <option value="">Select brand tone</option>
+                                <option value="Professional & Formal">Professional & Formal</option>
+                                <option value="Friendly & Casual">Friendly & Casual</option>
+                                <option value="Creative & Playful">Creative & Playful</option>
+                                <option value="Authoritative & Expert">Authoritative & Expert</option>
+                                <option value="Inspirational & Motivational">Inspirational & Motivational</option>
+                                <option value="Humorous & Witty">Humorous & Witty</option>
+                                <option value="Luxury & Premium">Luxury & Premium</option>
+                                <option value="Eco-friendly & Sustainable">Eco-friendly & Sustainable</option>
+                            </select>
+                            <small class="form-hint">This helps AI generate content that matches your brand voice</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="target_audience">Target Audience <span class="required">*</span></label>
+                            <textarea id="target_audience" name="target_audience" rows="4" required
+                                      placeholder="Describe your target audience (e.g., Age, demographics, interests, pain points)"></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="marketing_goals">Marketing Goals</label>
+                            <textarea id="marketing_goals" name="marketing_goals" rows="3"
+                                      placeholder="What are your primary marketing objectives? (e.g., Brand awareness, Lead generation, Sales)"></textarea>
+                        </div>
+                    </section>
+
+                    <!-- Content Preferences Section -->
+                    <section class="form-section">
+                        <h3 class="section-title">Content Preferences</h3>
+                        
+                        <div class="form-group">
+                            <label for="content_preferences">Content Preferences</label>
+                            <textarea id="content_preferences" name="content_preferences" rows="3"
+                                      placeholder="What type of content do you prefer? (e.g., Educational, Promotional, Storytelling)"></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="primary_channels">Primary Marketing Channels</label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="primary_channels" value="LinkedIn">
+                                    <span>LinkedIn</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="primary_channels" value="Twitter">
+                                    <span>Twitter</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="primary_channels" value="Instagram">
+                                    <span>Instagram</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="primary_channels" value="Facebook">
+                                    <span>Facebook</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="primary_channels" value="Email">
+                                    <span>Email Newsletter</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="primary_channels" value="Website">
+                                    <span>Website/Blog</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="primary_channels" value="YouTube">
+                                    <span>YouTube</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="budget_range">Budget Range</label>
+                            <select id="budget_range" name="budget_range">
+                                <option value="">Select budget range</option>
+                                <option value="Under $1,000/month">Under $1,000/month</option>
+                                <option value="$1,000 - $5,000/month">$1,000 - $5,000/month</option>
+                                <option value="$5,000 - $10,000/month">$5,000 - $10,000/month</option>
+                                <option value="$10,000 - $25,000/month">$10,000 - $25,000/month</option>
+                                <option value="Above $25,000/month">Above $25,000/month</option>
+                            </select>
+                        </div>
+                    </section>
+
+                    <!-- Past Examples & Assets Section -->
+                    <section class="form-section">
+                        <h3 class="section-title">Past Examples & Assets</h3>
+                        
+                        <div class="form-group">
+                            <label for="past_examples">Past Marketing Examples</label>
+                            <textarea id="past_examples" name="past_examples" rows="4"
+                                      placeholder="Share examples of your past successful campaigns, content, or marketing materials"></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="texts">Sample Texts/Content</label>
+                            <textarea id="texts" name="texts" rows="4"
+                                      placeholder="Paste any sample marketing copy, blog posts, or text content that represents your brand"></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="images">Upload Images</label>
+                            <input type="file" id="images" name="images" multiple accept="image/*" class="file-input">
+                            <small class="form-hint">Upload brand logos, marketing materials, or visual assets (Multiple files allowed)</small>
+                            <div id="imagePreview" class="file-preview"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="videos">Upload Videos</label>
+                            <input type="file" id="videos" name="videos" multiple accept="video/*" class="file-input">
+                            <small class="form-hint">Upload promotional videos or brand videos (Multiple files allowed)</small>
+                            <div id="videoPreview" class="file-preview"></div>
+                        </div>
+                    </section>
+
+                    <!-- Submit Button -->
+                    <div class="form-actions">
+                        <button type="submit" class="submit-btn" id="submitBtn">
+                            <span class="btn-text">Complete Onboarding</span>
+                            <span class="btn-loader" style="display: none;">⏳ Processing...</span>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Success Message -->
+                <div id="successMessage" class="success-message" style="display: none;">
+                    <div class="success-icon">✅</div>
+                    <h3>Onboarding Successful!</h3>
+                    <p id="successText"></p>
+                    <button onclick="resetForm()" class="reset-btn">Onboard Another Client</button>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2024 CampaignForge. AI-Powered Marketing Automation.</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
