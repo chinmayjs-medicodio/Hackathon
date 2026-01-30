@@ -6,33 +6,16 @@ const ProcessingPage = ({
   message = 'Processing your request...', 
   subMessage = 'Please wait while we generate your content',
   workflowStep = 'onboarding',
+  completedSteps: propCompletedSteps = [],
   onStepChange = null
 }) => {
   const [currentStep, setCurrentStep] = useState(workflowStep);
-  const [completedSteps, setCompletedSteps] = useState([]);
+  const [completedSteps, setCompletedSteps] = useState(propCompletedSteps);
 
   useEffect(() => {
-    // Simulate workflow progression
-    const steps = ['onboarding', 'generating'];
-    let stepIndex = steps.indexOf(currentStep);
-    
-    if (stepIndex === 0) {
-      // Start with onboarding
-      setCompletedSteps([]);
-      
-      // After 1 second, complete onboarding and move to generating
-      const timer1 = setTimeout(() => {
-        setCompletedSteps(['onboarding']);
-        setCurrentStep('generating');
-        if (onStepChange) onStepChange('generating');
-      }, 1000);
-      
-      return () => clearTimeout(timer1);
-    } else if (stepIndex === 1) {
-      // Generating step - will be completed when content is ready
-      setCompletedSteps(['onboarding']);
-    }
-  }, []);
+    setCurrentStep(workflowStep);
+    setCompletedSteps(propCompletedSteps);
+  }, [workflowStep, propCompletedSteps]);
 
   return (
     <div className="processing-page">

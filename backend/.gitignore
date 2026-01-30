@@ -29,3 +29,6 @@ ENV/
 # Temporary files
 *.tmp
 *.temp
+
+# Uploaded files
+uploads/

@@ -223,6 +223,7 @@ const CampaignAutomation = () => {
                     <option value="Facebook">Facebook</option>
                     <option value="Twitter">Twitter</option>
                     <option value="Instagram">Instagram</option>
+                    <option value="Reddit">Reddit</option>
                     <option value="Google Ads">Google Ads</option>
                   </select>
                 </div>

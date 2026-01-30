@@ -4,6 +4,10 @@
     background: var(--bg-secondary);
 }
 
+.client-onboarding-page .workflow-progress {
+    margin-bottom: 32px;
+}
+
 .onboarding-card {
     background: var(--bg-primary);
     border-radius: 20px;

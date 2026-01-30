@@ -3,6 +3,7 @@ import './ClientOnboarding.css';
 import { onboardClient, healthCheck } from '../services/api';
 import BackButton from '../components/BackButton';
 import ProcessingPage from './ProcessingPage';
+import WorkflowProgress from '../components/WorkflowProgress';
 import { useToastContext } from '../context/ToastContext';
 
 const ClientOnboarding = () => {
@@ -18,7 +19,8 @@ const ClientOnboarding = () => {
     budget_range: '',
     past_examples: '',
     texts: '',
-    primary_channels: []
+    primary_channels: [],
+    generate_images: false
   });
 
   const [images, setImages] = useState([]);
@@ -30,6 +32,8 @@ const ClientOnboarding = () => {
   const [success, setSuccess] = useState(false);
   const [successData, setSuccessData] = useState(null);
   const [error, setError] = useState(null);
+  const [workflowStep, setWorkflowStep] = useState(null);
+  const [completedSteps, setCompletedSteps] = useState([]);
   const toast = useToastContext();
 
   useEffect(() => {
@@ -90,19 +94,40 @@ const ClientOnboarding = () => {
     setLoading(true);
     setError(null);
     setProcessing(true);
+    
+    // Start workflow: Step 1 - Onboarding
+    setWorkflowStep('onboarding');
+    setCompletedSteps([]);
+    toast.info('Starting client onboarding process...');
 
     try {
+      // Step 1: Complete onboarding (simulate with delay)
+      setTimeout(() => {
+        setCompletedSteps(['onboarding']);
+        setWorkflowStep('generating');
+        toast.info('Client onboarded! Generating content for all platforms...');
+      }, 1500);
+
+      // Step 2: Call API to onboard client and generate content
       const result = await onboardClient(formData, images, videos);
       setSuccessData(result.data);
       
-      // Wait a bit to show processing, then show success
+      // Step 3: Complete generating step
       setTimeout(() => {
-        setProcessing(false);
-        setSuccess(true);
-        toast.success(`Client "${result.data.company_name}" onboarded successfully! Content generation in progress.`);
+        setCompletedSteps(['onboarding', 'generating']);
+        setWorkflowStep('approval');
+        toast.success(`Client "${result.data.company_name}" onboarded successfully! Content generated for all platforms.`);
+        
+        // Show success page after a brief delay
+        setTimeout(() => {
+          setProcessing(false);
+          setSuccess(true);
+        }, 1500);
       }, 2000);
     } catch (err) {
       setProcessing(false);
+      setWorkflowStep(null);
+      setCompletedSteps([]);
       setError(err.message || 'Failed to onboard client. Please try again.');
       toast.error(err.message || 'Failed to onboard client. Please try again.');
       console.error('Error:', err);
@@ -133,6 +158,8 @@ const ClientOnboarding = () => {
     setSuccess(false);
     setSuccessData(null);
     setError(null);
+    setWorkflowStep(null);
+    setCompletedSteps([]);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -140,8 +167,15 @@ const ClientOnboarding = () => {
     return (
       <ProcessingPage 
         message="Onboarding Client & Generating Content"
-        subMessage="We're creating your client profile and generating AI-powered content for all selected platforms. This may take a few moments."
-        workflowStep="onboarding"
+        subMessage={
+          workflowStep === 'onboarding' 
+            ? "Creating your client profile and setting up the account..."
+            : workflowStep === 'generating'
+            ? "Generating AI-powered content for all selected platforms. This may take a few moments..."
+            : "Content generation complete! Ready for approval."
+        }
+        workflowStep={workflowStep || 'onboarding'}
+        completedSteps={completedSteps}
       />
     );
   }
@@ -176,6 +210,12 @@ const ClientOnboarding = () => {
     <div className="client-onboarding-page">
       <div className="container">
         <BackButton />
+        {workflowStep && (
+          <WorkflowProgress 
+            currentStep={workflowStep} 
+            completedSteps={completedSteps}
+          />
+        )}
         <div className="onboarding-card">
       <div className="card-header">
         <h2>Client Onboarding</h2>
@@ -336,7 +376,7 @@ const ClientOnboarding = () => {
           <div className="form-group">
             <label>Primary Marketing Channels</label>
             <div className="checkbox-group">
-              {['LinkedIn', 'Twitter', 'Instagram', 'Facebook', 'Email', 'Website', 'YouTube'].map(channel => (
+              {['LinkedIn', 'Twitter', 'Instagram', 'Facebook', 'Reddit', 'Email', 'Website', 'YouTube'].map(channel => (
                 <label key={channel} className="checkbox-label">
                   <input
                     type="checkbox"
@@ -348,6 +388,19 @@ const ClientOnboarding = () => {
                 </label>
               ))}
             </div>
+          </div>
+
+          <div className="form-group">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                name="generate_images"
+                checked={formData.generate_images}
+                onChange={(e) => setFormData(prev => ({ ...prev, generate_images: e.target.checked }))}
+              />
+              <span>🎨 Generate AI Images for Marketing Content</span>
+            </label>
+            <p className="form-hint">Check this to automatically generate AI-powered images based on your brand information</p>
           </div>
 
           <div className="form-group">

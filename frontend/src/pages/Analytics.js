@@ -46,6 +46,7 @@ const Analytics = () => {
     { name: 'Twitter', value: 25, posts: 85 },
     { name: 'Instagram', value: 20, posts: 95 },
     { name: 'Facebook', value: 15, posts: 70 },
+    { name: 'Reddit', value: 12, posts: 65 },
     { name: 'Email', value: 5, posts: 30 }
   ];
 

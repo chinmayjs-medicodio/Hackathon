@@ -69,6 +69,7 @@ def generate_content(
             'Twitter': 'Create an engaging Twitter post (280 characters max)',
             'Instagram': 'Create an Instagram post with engaging copy',
             'Facebook': 'Create a Facebook post that encourages engagement',
+            'Reddit': 'Create a Reddit post that follows community guidelines and encourages discussion',
             'Email': 'Create an email newsletter content',
             'Website': 'Create a blog post or website content',
             'YouTube': 'Create a video script for YouTube'
@@ -182,6 +183,11 @@ def regenerate_content(
                 'max_length': '5000 characters',
                 'style': 'conversational, community-focused, engaging',
                 'format': 'paragraphs with questions to encourage engagement'
+            },
+            'Reddit': {
+                'max_length': '40000 characters',
+                'style': 'informative, authentic, discussion-provoking, follows Reddit etiquette',
+                'format': 'well-structured post with engaging body text, clear formatting, and questions to spark conversation'
             },
             'Email': {
                 'max_length': '2000 characters',
@@ -329,6 +335,78 @@ def post_to_n8n(platform: str, content: str, client_data: Dict) -> Dict:
         }
 
 
+def generate_ai_image(client_data: Dict, platform: str) -> Optional[str]:
+    """
+    Generate an AI image using DALL-E based on client data and platform
+    
+    Args:
+        client_data: Client onboarding data
+        platform: Target platform for the image
+    
+    Returns:
+        Image URL or None if generation fails
+    """
+    try:
+        client = get_openai_client()
+        
+        # Build image generation prompt
+        company_name = client_data.get('company_name', 'Company')
+        industry = client_data.get('industry', 'Business')
+        brand_tone = client_data.get('brand_tone', 'Professional')
+        target_audience = client_data.get('target_audience', 'General audience')
+        marketing_goals = client_data.get('marketing_goals', 'Brand awareness')
+        
+        # Platform-specific image style guidance
+        platform_styles = {
+            'LinkedIn': 'professional, corporate, business-focused',
+            'Twitter': 'vibrant, engaging, social media optimized',
+            'Instagram': 'aesthetic, visually appealing, modern design',
+            'Facebook': 'friendly, community-oriented, engaging',
+            'Reddit': 'authentic, community-focused, discussion-worthy',
+            'Email': 'clean, professional, email-friendly format',
+            'Website': 'professional, brand-aligned, web-optimized',
+            'YouTube': 'eye-catching thumbnail style, video-friendly'
+        }
+        
+        style_guide = platform_styles.get(platform, 'professional and engaging')
+        
+        prompt = f"""Create a high-quality marketing image for {company_name}, a {industry} company.
+
+Brand Details:
+- Brand Tone: {brand_tone}
+- Target Audience: {target_audience}
+- Marketing Goal: {marketing_goals}
+- Platform: {platform}
+
+Image Requirements:
+- Style: {style_guide}
+- Professional quality, suitable for {platform} marketing
+- Visually appealing and brand-appropriate
+- No text overlays (text will be added separately)
+- High resolution, modern design aesthetic
+
+Create an image that represents {company_name}'s brand identity and appeals to {target_audience}."""
+        
+        # Generate image using DALL-E
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=prompt,
+            size="1024x1024",
+            quality="standard",
+            n=1
+        )
+        
+        if response.data and len(response.data) > 0:
+            return response.data[0].url
+        else:
+            print("No image URL returned from DALL-E")
+            return None
+            
+    except Exception as e:
+        print(f"Error generating AI image: {str(e)}")
+        return None
+
+
 def generate_content_for_all_platforms(client_data: Dict) -> List[Dict]:
     """
     Generate content for all platforms specified in client's primary_channels
@@ -348,10 +426,18 @@ def generate_content_for_all_platforms(client_data: Dict) -> List[Dict]:
         'Twitter': 'post',
         'Instagram': 'post',
         'Facebook': 'post',
+        'Reddit': 'post',
         'Email': 'newsletter',
         'Website': 'blog',
         'YouTube': 'video_script'
     }
+    
+    # Check if image generation is requested
+    generate_images = client_data.get('generate_images', False) or str(client_data.get('generate_images', '')).lower() == 'true'
+    
+    # Get uploaded images
+    uploaded_images = client_data.get('images', [])
+    uploaded_image_urls = [img.get('url') for img in uploaded_images if img.get('url')]
     
     generated_content = []
     
@@ -369,14 +455,32 @@ def generate_content_for_all_platforms(client_data: Dict) -> List[Dict]:
                 content_type=content_type
             )
             
-            generated_content.append({
+            content_item = {
                 'platform': platform,
                 'content_type': content_type,
                 'content': content,
                 'client_id': client_data.get('client_id'),
                 'client_name': client_data.get('company_name'),
                 'status': 'pending'
-            })
+            }
+            
+            # Add uploaded images to content item
+            if uploaded_image_urls:
+                content_item['uploaded_images'] = uploaded_image_urls
+                content_item['has_uploaded_images'] = True
+            
+            # Generate AI image if requested
+            if generate_images:
+                try:
+                    image_url = generate_ai_image(client_data, platform)
+                    if image_url:
+                        content_item['generated_image_url'] = image_url
+                        content_item['has_image'] = True
+                except Exception as e:
+                    print(f"Error generating image for {platform}: {str(e)}")
+                    content_item['has_image'] = False
+            
+            generated_content.append(content_item)
         except Exception as e:
             print(f"Error generating content for {platform}: {str(e)}")
             continue

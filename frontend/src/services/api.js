@@ -28,6 +28,9 @@ export const onboardClient = async (formData, images = [], videos = []) => {
       if (key === 'primary_channels') {
         // Join channels array into comma-separated string
         formDataToSend.append(key, formData[key].join(', '));
+      } else if (key === 'generate_images') {
+        // Convert boolean to string for form data
+        formDataToSend.append(key, formData[key] ? 'true' : 'false');
       } else {
         formDataToSend.append(key, formData[key] || '');
       }

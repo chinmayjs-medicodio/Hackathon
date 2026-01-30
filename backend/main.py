@@ -1,11 +1,14 @@
 from fastapi import FastAPI, File, UploadFile, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from typing import Optional, List
 from pydantic import BaseModel
 from datetime import datetime
 import uvicorn
 import uuid
+import os
+from pathlib import Path
 from bson import ObjectId
 from contextlib import asynccontextmanager
 from services import generate_content_for_all_platforms, generate_content, regenerate_content, post_to_n8n
@@ -30,6 +33,13 @@ async def lifespan(app: FastAPI):
     await close_mongo_connection()
 
 app = FastAPI(title="CampaignForge API", version="1.0.0", lifespan=lifespan)
+
+# Create uploads directory if it doesn't exist
+UPLOAD_DIR = Path("uploads/images")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+# Serve uploaded images statically
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # CORS middleware to allow frontend requests
 app.add_middleware(
@@ -78,6 +88,7 @@ async def onboard_client(
     budget_range: Optional[str] = Form(None),
     primary_channels: Optional[str] = Form(None),
     texts: Optional[str] = Form(None),
+    generate_images: Optional[str] = Form(None),
     images: List[UploadFile] = File(None),
     videos: List[UploadFile] = File(None)
 ):
@@ -87,14 +98,30 @@ async def onboard_client(
     try:
         # Process uploaded images
         image_files = []
+        uploaded_image_urls = []
         if images:
             for image in images:
                 if image.filename:
                     contents = await image.read()
+                    # Generate unique filename
+                    file_ext = Path(image.filename).suffix
+                    unique_filename = f"{uuid.uuid4()}{file_ext}"
+                    file_path = UPLOAD_DIR / unique_filename
+                    
+                    # Save file
+                    with open(file_path, "wb") as f:
+                        f.write(contents)
+                    
+                    # Create URL
+                    image_url = f"/uploads/images/{unique_filename}"
+                    uploaded_image_urls.append(image_url)
+                    
                     image_files.append({
                         "filename": image.filename,
+                        "stored_filename": unique_filename,
                         "content_type": image.content_type,
-                        "size": len(contents)
+                        "size": len(contents),
+                        "url": image_url
                     })
         
         # Process uploaded videos
@@ -125,6 +152,7 @@ async def onboard_client(
             "budget_range": budget_range,
             "primary_channels": primary_channels,
             "texts": texts,
+            "generate_images": generate_images == 'true' or generate_images == 'on' if generate_images else False,
             "images": image_files,
             "videos": video_files,
             "onboarded_at": datetime.now().isoformat(),
@@ -508,6 +536,7 @@ async def get_analytics(time_range: str = Query("7d")):
             {"name": "Twitter", "value": 25, "posts": 85},
             {"name": "Instagram", "value": 20, "posts": 95},
             {"name": "Facebook", "value": 15, "posts": 70},
+            {"name": "Reddit", "value": 12, "posts": 65},
             {"name": "Email", "value": 5, "posts": 30}
         ],
         "campaign_performance": [

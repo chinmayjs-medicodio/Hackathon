@@ -155,6 +155,7 @@ const ContentApproval = () => {
       'Twitter': '🐦',
       'Instagram': '📷',
       'Facebook': '👥',
+      'Reddit': '🤖',
       'Email': '📧',
       'Website': '🌐',
       'YouTube': '📺'
@@ -256,6 +257,50 @@ const ContentApproval = () => {
                 </div>
 
                 <div className="content-body">
+                  {/* Display uploaded images */}
+                  {item.uploaded_images && item.uploaded_images.length > 0 && (
+                    <div className="content-images-section">
+                      <div className="images-section-header">
+                        <span className="images-section-title">📎 Uploaded Images</span>
+                      </div>
+                      <div className="uploaded-images-grid">
+                        {item.uploaded_images.map((imgUrl, idx) => (
+                          <div key={idx} className="content-image-container uploaded-image">
+                            <img 
+                              src={`http://localhost:8000${imgUrl}`}
+                              alt={`Uploaded image ${idx + 1} for ${item.platform}`}
+                              className="content-image"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                              }}
+                            />
+                            <div className="image-badge uploaded-badge">📎 Uploaded</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Display AI generated image */}
+                  {item.generated_image_url && (
+                    <div className="content-images-section">
+                      <div className="images-section-header">
+                        <span className="images-section-title">🎨 AI Generated Image</span>
+                      </div>
+                      <div className="content-image-container generated-image">
+                        <img 
+                          src={item.generated_image_url} 
+                          alt={`Generated image for ${item.platform}`}
+                          className="content-image"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
+                        />
+                        <div className="image-badge generated-badge">🎨 AI Generated</div>
+                      </div>
+                    </div>
+                  )}
+                  
                   {editingId === item.id ? (
                     <textarea
                       className="edit-textarea"
