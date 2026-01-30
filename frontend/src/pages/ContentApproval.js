@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './ContentApproval.css';
 import { getPendingContent, approveContent, editContent, deleteContent, regenerateContent, getClients } from '../services/api';
 import BackButton from '../components/BackButton';
+import WorkflowProgress from '../components/WorkflowProgress';
 import { useToastContext } from '../context/ToastContext';
 
 const ContentApproval = () => {
@@ -12,6 +13,9 @@ const ContentApproval = () => {
   const [selectedClient, setSelectedClient] = useState('all');
   const [regeneratingIds, setRegeneratingIds] = useState(new Set());
   const [clients, setClients] = useState([]);
+  const [workflowStep, setWorkflowStep] = useState('approval');
+  const [completedSteps, setCompletedSteps] = useState(['onboarding', 'generating']);
+  const [postingItemId, setPostingItemId] = useState(null);
   const toast = useToastContext();
 
   useEffect(() => {
@@ -44,10 +48,39 @@ const ContentApproval = () => {
 
   const handleApprove = async (itemId) => {
     try {
+      // Step 1: Show approval step
+      setWorkflowStep('approval');
+      setCompletedSteps(['onboarding', 'generating']);
+      
+      // Step 2: Move to posting step
+      setWorkflowStep('posting');
+      setPostingItemId(itemId);
+      setCompletedSteps(['onboarding', 'generating', 'approval']);
+      
+      toast.info('Approving content and posting to platforms...');
+      
+      // Step 3: Post to n8n
       await approveContent(itemId);
+      
+      // Step 4: Complete workflow
+      setCompletedSteps(['onboarding', 'generating', 'approval', 'posting']);
+      setPostingItemId(null);
+      
+      // Reload content
       await loadContent();
-      toast.success('Content approved and posted successfully!');
+      
+      // Show success message
+      toast.success('✅ Content approved and posted successfully to all platforms!');
+      
+      // Reset workflow after 2 seconds
+      setTimeout(() => {
+        setWorkflowStep('approval');
+        setCompletedSteps(['onboarding', 'generating']);
+      }, 2000);
     } catch (error) {
+      setPostingItemId(null);
+      setWorkflowStep('approval');
+      setCompletedSteps(['onboarding', 'generating']);
       toast.error('Error approving content: ' + error.message);
     }
   };
@@ -154,6 +187,10 @@ const ContentApproval = () => {
     <div className="content-approval-page">
       <div className="container-wide">
         <BackButton />
+        <WorkflowProgress 
+          currentStep={workflowStep} 
+          completedSteps={completedSteps}
+        />
         <div className="page-header">
           <h1>Content Approval</h1>
           <p>Review and approve AI-generated content before publishing</p>
@@ -183,7 +220,7 @@ const ContentApproval = () => {
         ) : (
           <div className="content-grid">
             {contentItems.map((item) => (
-              <div key={item.id} className={`content-card ${regeneratingIds.has(item.id) ? 'regenerating' : ''}`}>
+              <div key={item.id} className={`content-card ${regeneratingIds.has(item.id) ? 'regenerating' : ''} ${postingItemId === item.id ? 'posting' : ''}`}>
                 {regeneratingIds.has(item.id) && (
                   <div className="content-loading-overlay">
                     <div className="content-spinner">
@@ -192,6 +229,16 @@ const ContentApproval = () => {
                       <div className="spinner-ring"></div>
                     </div>
                     <p>Regenerating content...</p>
+                  </div>
+                )}
+                {postingItemId === item.id && (
+                  <div className="content-loading-overlay posting-overlay">
+                    <div className="content-spinner">
+                      <div className="spinner-ring"></div>
+                      <div className="spinner-ring"></div>
+                      <div className="spinner-ring"></div>
+                    </div>
+                    <p>📤 Posting to platforms...</p>
                   </div>
                 )}
                 <div className="content-header">

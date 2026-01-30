@@ -1,0 +1,168 @@
+.workflow-progress {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 32px;
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+}
+
+.workflow-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.workflow-header h3 {
+  color: white;
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.workflow-steps {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  padding: 0 20px;
+}
+
+.workflow-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  flex: 1;
+  z-index: 2;
+}
+
+.step-circle {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  position: relative;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.step-circle.pending {
+  background: rgba(255, 255, 255, 0.2);
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.step-circle.active {
+  background: #fff;
+  border: 3px solid #4ade80;
+  color: #667eea;
+  animation: pulse 2s infinite;
+  box-shadow: 0 0 0 8px rgba(74, 222, 128, 0.2);
+}
+
+.step-circle.completed {
+  background: #4ade80;
+  border: 3px solid #4ade80;
+  color: white;
+}
+
+.step-check {
+  font-size: 28px;
+  font-weight: bold;
+  color: white;
+}
+
+.step-icon {
+  font-size: 24px;
+}
+
+.step-label {
+  margin-top: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+  text-align: center;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.step-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(74, 222, 128, 0.3);
+  animation: ripple 2s infinite;
+  z-index: -1;
+}
+
+.workflow-line {
+  flex: 1;
+  height: 4px;
+  margin: 0 10px;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+  position: relative;
+  top: -30px;
+  z-index: 1;
+}
+
+.workflow-line.pending {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.workflow-line.completed {
+  background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 8px rgba(74, 222, 128, 0.2);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 12px rgba(74, 222, 128, 0.1);
+  }
+}
+
+@keyframes ripple {
+  0% {
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.5);
+    opacity: 0;
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .workflow-steps {
+    padding: 0 10px;
+  }
+  
+  .step-circle {
+    width: 50px;
+    height: 50px;
+    font-size: 20px;
+  }
+  
+  .step-label {
+    font-size: 10px;
+    margin-top: 8px;
+  }
+  
+  .workflow-line {
+    height: 3px;
+  }
+}

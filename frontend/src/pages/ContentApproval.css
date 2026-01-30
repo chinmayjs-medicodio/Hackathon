@@ -4,6 +4,10 @@
   background: var(--bg-secondary);
 }
 
+.content-approval-page .workflow-progress {
+  margin-bottom: 32px;
+}
+
 .page-header {
   text-align: center;
   margin-bottom: 40px;
@@ -85,6 +89,21 @@
     pointer-events: none;
 }
 
+.content-card.posting {
+    border: 2px solid #4ade80;
+    box-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
+    animation: posting-pulse 2s infinite;
+}
+
+@keyframes posting-pulse {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(74, 222, 128, 0.5);
+    }
+}
+
 .content-loading-overlay {
     position: absolute;
     top: 0;
@@ -148,6 +167,10 @@
     100% {
         transform: rotate(360deg);
     }
+}
+
+.content-loading-overlay.posting-overlay p {
+    color: #4ade80;
 }
 
 .content-header {

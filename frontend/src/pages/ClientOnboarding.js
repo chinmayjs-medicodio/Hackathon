@@ -141,6 +141,7 @@ const ClientOnboarding = () => {
       <ProcessingPage 
         message="Onboarding Client & Generating Content"
         subMessage="We're creating your client profile and generating AI-powered content for all selected platforms. This may take a few moments."
+        workflowStep="onboarding"
       />
     );
   }
