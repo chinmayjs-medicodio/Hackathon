@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './Analytics.css';
 import { getAnalytics } from '../services/api';
+import BackButton from '../components/BackButton';
+import { useToastContext } from '../context/ToastContext';
 
 const Analytics = () => {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('7d');
+  const toast = useToastContext();
 
   useEffect(() => {
     loadAnalytics();
@@ -19,6 +22,7 @@ const Analytics = () => {
       setAnalytics(data);
     } catch (error) {
       console.error('Error loading analytics:', error);
+      toast.error('Failed to load analytics data');
     } finally {
       setLoading(false);
     }
@@ -64,6 +68,7 @@ const Analytics = () => {
   return (
     <div className="analytics-page">
       <div className="container-wide">
+        <BackButton />
         <div className="analytics-header">
           <h1>Analytics & Performance</h1>
           <div className="header-controls">

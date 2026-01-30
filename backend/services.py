@@ -132,6 +132,148 @@ Generate the content now:"""
         raise Exception(f"Error generating content: {str(e)}")
 
 
+def regenerate_content(
+    client_data: Dict,
+    platform: str,
+    content_type: str,
+    existing_content: str,
+    improvement_focus: Optional[str] = None
+) -> str:
+    """
+    Regenerate existing content using OpenAI with focus on improvement
+    
+    Args:
+        client_data: Client onboarding data
+        platform: Target platform (LinkedIn, Twitter, Instagram, etc.)
+        content_type: Type of content (post, blog, newsletter, ad_copy, video_script)
+        existing_content: The current content that needs to be regenerated
+        improvement_focus: Optional focus area for improvement (e.g., "more engaging", "better CTA", "shorter")
+    
+    Returns:
+        Regenerated content string
+    """
+    try:
+        # Build context from client data
+        brand_tone = client_data.get('brand_tone', 'Professional')
+        industry = client_data.get('industry', 'General')
+        target_audience = client_data.get('target_audience', 'General audience')
+        marketing_goals = client_data.get('marketing_goals', 'Brand awareness')
+        content_preferences = client_data.get('content_preferences', 'Educational')
+        company_name = client_data.get('company_name', 'Unknown')
+        
+        # Platform-specific guidelines
+        platform_guidelines = {
+            'LinkedIn': {
+                'max_length': '1300 characters',
+                'style': 'professional, thought-provoking, industry insights',
+                'format': 'paragraphs with clear structure'
+            },
+            'Twitter': {
+                'max_length': '280 characters',
+                'style': 'concise, engaging, hashtag-friendly',
+                'format': 'short sentences, can include hashtags'
+            },
+            'Instagram': {
+                'max_length': '2200 characters',
+                'style': 'visual, engaging, authentic, emoji-friendly',
+                'format': 'short paragraphs, can include emojis and line breaks'
+            },
+            'Facebook': {
+                'max_length': '5000 characters',
+                'style': 'conversational, community-focused, engaging',
+                'format': 'paragraphs with questions to encourage engagement'
+            },
+            'Email': {
+                'max_length': '2000 characters',
+                'style': 'clear, actionable, value-driven',
+                'format': 'structured with clear sections and CTA'
+            },
+            'Website': {
+                'max_length': '2000 words',
+                'style': 'informative, SEO-friendly, comprehensive',
+                'format': 'structured with headings and subheadings'
+            },
+            'YouTube': {
+                'max_length': '5000 words',
+                'style': 'conversational, engaging, storytelling',
+                'format': 'script format with scene descriptions and dialogue'
+            }
+        }
+        
+        guidelines = platform_guidelines.get(platform, {
+            'max_length': 'appropriate length',
+            'style': 'engaging and professional',
+            'format': 'well-structured'
+        })
+        
+        # Build the regeneration prompt
+        improvement_instruction = ""
+        if improvement_focus:
+            improvement_instruction = f"\n\nIMPORTANT: Focus on improving: {improvement_focus}"
+        else:
+            improvement_instruction = "\n\nIMPORTANT: Improve the content while maintaining brand consistency - make it more engaging, compelling, and aligned with the brand voice."
+        
+        prompt = f"""You are an expert marketing content writer. Your task is to REGENERATE and IMPROVE the following content for {platform}.
+
+CURRENT CONTENT TO REGENERATE:
+---
+{existing_content}
+---
+
+CLIENT BRAND CONTEXT:
+- Company: {company_name}
+- Industry: {industry}
+- Brand Tone: {brand_tone}
+- Target Audience: {target_audience}
+- Marketing Goals: {marketing_goals}
+- Content Preferences: {content_preferences}
+
+PLATFORM REQUIREMENTS:
+- Platform: {platform}
+- Content Type: {content_type}
+- Maximum Length: {guidelines['max_length']}
+- Style: {guidelines['style']}
+- Format: {guidelines['format']}
+{improvement_instruction}
+
+REGENERATION GUIDELINES:
+1. Maintain the core message and intent of the original content
+2. Keep the brand tone consistent: {brand_tone}
+3. Ensure it appeals to: {target_audience}
+4. Align with marketing goals: {marketing_goals}
+5. Follow content preferences: {content_preferences}
+6. Improve engagement, clarity, and impact
+7. Make it more compelling while staying authentic to the brand
+8. Ensure it fits the {platform} platform format and best practices
+9. Include a strong call-to-action if appropriate for the platform
+10. Optimize for the target audience's interests and pain points
+
+Generate the REGENERATED and IMPROVED content now. Make it better than the original while maintaining brand consistency:"""
+
+        client = get_openai_client()
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert marketing content writer specializing in regenerating and improving existing content while maintaining brand consistency and increasing engagement."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.8,  # Slightly higher for more creative variations
+            max_tokens=1500  # Increased for better regeneration
+        )
+        
+        regenerated_content = response.choices[0].message.content.strip()
+        return regenerated_content
+        
+    except Exception as e:
+        raise Exception(f"Error regenerating content: {str(e)}")
+
+
 def post_to_n8n(platform: str, content: str, client_data: Dict) -> Dict:
     """
     Send content to n8n webhook for automated posting

@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import './CampaignAutomation.css';
 import { getCampaigns, createCampaign, updateCampaign, deleteCampaign } from '../services/api';
+import BackButton from '../components/BackButton';
+import { useToastContext } from '../context/ToastContext';
 
 const CampaignAutomation = () => {
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const toast = useToastContext();
   const [formData, setFormData] = useState({
     name: '',
     client_id: '',
@@ -49,8 +52,9 @@ const CampaignAutomation = () => {
         ad_type: 'display'
       });
       await loadCampaigns();
+      toast.success('Campaign created successfully!');
     } catch (error) {
-      alert('Error creating campaign: ' + error.message);
+      toast.error('Error creating campaign: ' + error.message);
     }
   };
 
@@ -59,8 +63,9 @@ const CampaignAutomation = () => {
       try {
         await deleteCampaign(campaignId);
         await loadCampaigns();
+        toast.success('Campaign deleted successfully');
       } catch (error) {
-        alert('Error deleting campaign: ' + error.message);
+        toast.error('Error deleting campaign: ' + error.message);
       }
     }
   };
@@ -89,6 +94,7 @@ const CampaignAutomation = () => {
   return (
     <div className="campaign-automation-page">
       <div className="container-wide">
+        <BackButton />
         <div className="page-header">
           <div>
             <h1>Ads & Campaign Automation</h1>

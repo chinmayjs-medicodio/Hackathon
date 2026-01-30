@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import './ContentApproval.css';
-import { getPendingContent, approveContent, editContent, deleteContent, regenerateContent } from '../services/api';
+import { getPendingContent, approveContent, editContent, deleteContent, regenerateContent, getClients } from '../services/api';
+import BackButton from '../components/BackButton';
+import { useToastContext } from '../context/ToastContext';
 
 const ContentApproval = () => {
   const [contentItems, setContentItems] = useState([]);
@@ -8,9 +10,13 @@ const ContentApproval = () => {
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
   const [selectedClient, setSelectedClient] = useState('all');
+  const [regeneratingIds, setRegeneratingIds] = useState(new Set());
+  const [clients, setClients] = useState([]);
+  const toast = useToastContext();
 
   useEffect(() => {
     loadContent();
+    loadClients();
   }, [selectedClient]);
 
   const loadContent = async () => {
@@ -20,8 +26,19 @@ const ContentApproval = () => {
       setContentItems(data.content || []);
     } catch (error) {
       console.error('Error loading content:', error);
+      toast.error('Failed to load pending content');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadClients = async () => {
+    try {
+      const data = await getClients();
+      setClients(data.clients || []);
+    } catch (error) {
+      console.error('Error loading clients:', error);
+      toast.error('Failed to load clients');
     }
   };
 
@@ -29,8 +46,9 @@ const ContentApproval = () => {
     try {
       await approveContent(itemId);
       await loadContent();
+      toast.success('Content approved and posted successfully!');
     } catch (error) {
-      alert('Error approving content: ' + error.message);
+      toast.error('Error approving content: ' + error.message);
     }
   };
 
@@ -39,8 +57,9 @@ const ContentApproval = () => {
       try {
         await deleteContent(itemId);
         await loadContent();
+        toast.success('Content deleted successfully');
       } catch (error) {
-        alert('Error deleting content: ' + error.message);
+        toast.error('Error deleting content: ' + error.message);
       }
     }
   };
@@ -48,10 +67,26 @@ const ContentApproval = () => {
   const handleRegenerate = async (itemId, platform, contentType) => {
     if (window.confirm(`Regenerate ${contentType} for ${platform}?`)) {
       try {
-        await regenerateContent(itemId, platform, contentType);
+        setRegeneratingIds(prev => new Set(prev).add(itemId));
+        toast.info(`Regenerating content for ${platform}...`);
+        
+        const result = await regenerateContent(itemId, platform, contentType);
         await loadContent();
+        
+        setRegeneratingIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(itemId);
+          return newSet;
+        });
+        
+        toast.success('Content regenerated successfully!');
       } catch (error) {
-        alert('Error regenerating content: ' + error.message);
+        setRegeneratingIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(itemId);
+          return newSet;
+        });
+        toast.error('Error regenerating content: ' + error.message);
       }
     }
   };
@@ -64,8 +99,9 @@ const ContentApproval = () => {
         setEditingId(null);
         setEditText('');
         await loadContent();
+        toast.success('Content updated successfully');
       } catch (error) {
-        alert('Error saving edit: ' + error.message);
+        toast.error('Error saving edit: ' + error.message);
       }
     } else {
       // Start editing
@@ -117,6 +153,7 @@ const ContentApproval = () => {
   return (
     <div className="content-approval-page">
       <div className="container-wide">
+        <BackButton />
         <div className="page-header">
           <h1>Content Approval</h1>
           <p>Review and approve AI-generated content before publishing</p>
@@ -129,8 +166,11 @@ const ContentApproval = () => {
             className="filter-select"
           >
             <option value="all">All Clients</option>
-            <option value="CLIENT_0001">Client 1</option>
-            <option value="CLIENT_0002">Client 2</option>
+            {clients.map((client) => (
+              <option key={client.client_id} value={client.client_id}>
+                {client.company_name} ({client.client_id})
+              </option>
+            ))}
           </select>
         </div>
 
@@ -143,7 +183,17 @@ const ContentApproval = () => {
         ) : (
           <div className="content-grid">
             {contentItems.map((item) => (
-              <div key={item.id} className="content-card">
+              <div key={item.id} className={`content-card ${regeneratingIds.has(item.id) ? 'regenerating' : ''}`}>
+                {regeneratingIds.has(item.id) && (
+                  <div className="content-loading-overlay">
+                    <div className="content-spinner">
+                      <div className="spinner-ring"></div>
+                      <div className="spinner-ring"></div>
+                      <div className="spinner-ring"></div>
+                    </div>
+                    <p>Regenerating content...</p>
+                  </div>
+                )}
                 <div className="content-header">
                   <div className="content-meta">
                     <span className="platform-badge">
@@ -208,8 +258,9 @@ const ContentApproval = () => {
                         <button 
                           className="btn btn-warning btn-sm"
                           onClick={() => handleRegenerate(item.id, item.platform, item.content_type)}
+                          disabled={regeneratingIds.has(item.id)}
                         >
-                          🔄 Regenerate
+                          {regeneratingIds.has(item.id) ? '⏳ Regenerating...' : '🔄 Regenerate'}
                         </button>
                         <button 
                           className="btn btn-danger btn-sm"

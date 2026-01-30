@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import './ClientOnboarding.css';
 import { onboardClient, healthCheck } from '../services/api';
+import BackButton from '../components/BackButton';
+import ProcessingPage from './ProcessingPage';
+import { useToastContext } from '../context/ToastContext';
 
 const ClientOnboarding = () => {
   const [formData, setFormData] = useState({
@@ -23,9 +26,11 @@ const ClientOnboarding = () => {
   const [imagePreviews, setImagePreviews] = useState([]);
   const [videoPreviews, setVideoPreviews] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
   const [successData, setSuccessData] = useState(null);
   const [error, setError] = useState(null);
+  const toast = useToastContext();
 
   useEffect(() => {
     // Health check on component mount
@@ -84,13 +89,22 @@ const ClientOnboarding = () => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setProcessing(true);
 
     try {
       const result = await onboardClient(formData, images, videos);
       setSuccessData(result.data);
-      setSuccess(true);
+      
+      // Wait a bit to show processing, then show success
+      setTimeout(() => {
+        setProcessing(false);
+        setSuccess(true);
+        toast.success(`Client "${result.data.company_name}" onboarded successfully! Content generation in progress.`);
+      }, 2000);
     } catch (err) {
+      setProcessing(false);
       setError(err.message || 'Failed to onboard client. Please try again.');
+      toast.error(err.message || 'Failed to onboard client. Please try again.');
       console.error('Error:', err);
     } finally {
       setLoading(false);
@@ -122,10 +136,20 @@ const ClientOnboarding = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  if (processing) {
+    return (
+      <ProcessingPage 
+        message="Onboarding Client & Generating Content"
+        subMessage="We're creating your client profile and generating AI-powered content for all selected platforms. This may take a few moments."
+      />
+    );
+  }
+
   if (success) {
     return (
       <div className="client-onboarding-page">
         <div className="container">
+          <BackButton />
           <div className="onboarding-card">
             <div className="success-message">
               <div className="success-icon">✅</div>
@@ -133,6 +157,9 @@ const ClientOnboarding = () => {
               <p>
                 Client "{successData.company_name}" has been successfully onboarded!<br />
                 Client ID: {successData.client_id}
+              </p>
+              <p className="success-note">
+                Content has been generated for all selected platforms. You can review and approve it in the Content Approval section.
               </p>
               <button onClick={handleReset} className="reset-btn">
                 Onboard Another Client
@@ -147,6 +174,7 @@ const ClientOnboarding = () => {
   return (
     <div className="client-onboarding-page">
       <div className="container">
+        <BackButton />
         <div className="onboarding-card">
       <div className="card-header">
         <h2>Client Onboarding</h2>

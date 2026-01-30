@@ -5,9 +5,31 @@ from typing import Optional, List
 from pydantic import BaseModel
 from datetime import datetime
 import uvicorn
-from services import generate_content_for_all_platforms, generate_content, post_to_n8n
+import uuid
+from bson import ObjectId
+from contextlib import asynccontextmanager
+from services import generate_content_for_all_platforms, generate_content, regenerate_content, post_to_n8n
+from database import connect_to_mongo, close_mongo_connection, get_database, get_clients_collection, get_content_collection, get_campaigns_collection
 
-app = FastAPI(title="CampaignForge API", version="1.0.0")
+def convert_objectid_to_str(obj):
+    """Recursively convert ObjectId to string in dictionaries"""
+    if isinstance(obj, ObjectId):
+        return str(obj)
+    elif isinstance(obj, dict):
+        return {key: convert_objectid_to_str(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_objectid_to_str(item) for item in obj]
+    return obj
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    await connect_to_mongo()
+    yield
+    # Shutdown
+    await close_mongo_connection()
+
+app = FastAPI(title="CampaignForge API", version="1.0.0", lifespan=lifespan)
 
 # CORS middleware to allow frontend requests
 app.add_middleware(
@@ -32,10 +54,7 @@ class ClientOnboardingRequest(BaseModel):
     budget_range: Optional[str] = None
     primary_channels: Optional[str] = None
 
-# Store client data (in production, use a database)
-clients_db = []
-content_db = []  # Store generated content
-campaigns_db = []  # Store campaigns
+# MongoDB collections will be accessed via helper functions from database.py
 
 @app.get("/")
 async def root():
@@ -90,9 +109,10 @@ async def onboard_client(
                         "size": len(contents)
                     })
         
-        # Create client record
+        # Create client record with UUID
+        client_uuid = str(uuid.uuid4())
         client_data = {
-            "client_id": f"CLIENT_{len(clients_db) + 1:04d}",
+            "client_id": client_uuid,
             "company_name": company_name,
             "brand_tone": brand_tone,
             "industry": industry,
@@ -111,17 +131,37 @@ async def onboard_client(
             "status": "onboarded"
         }
         
-        clients_db.append(client_data)
+        # Save to MongoDB
+        clients_collection = get_clients_collection()
+        if clients_collection is not None:
+            await clients_collection.insert_one(client_data)
+        else:
+            # Fallback to in-memory if DB not connected
+            if not hasattr(app.state, 'clients_db'):
+                app.state.clients_db = []
+            app.state.clients_db.append(client_data)
         
         # Generate initial content for all platforms
         try:
             generated_content = generate_content_for_all_platforms(client_data)
+            content_collection = get_content_collection()
+            
             for content_item in generated_content:
-                content_item['id'] = f"CONTENT_{len(content_db) + 1:04d}"
+                content_item['id'] = str(uuid.uuid4())
                 content_item['created_at'] = datetime.now().isoformat()
-                content_db.append(content_item)
+                
+                if content_collection is not None:
+                    await content_collection.insert_one(content_item)
+                else:
+                    # Fallback to in-memory
+                    if not hasattr(app.state, 'content_db'):
+                        app.state.content_db = []
+                    app.state.content_db.append(content_item)
         except Exception as e:
             print(f"Warning: Could not generate initial content: {str(e)}")
+        
+        # Convert ObjectId to string for JSON serialization (recursively handles nested structures)
+        client_data_serializable = convert_objectid_to_str(client_data)
         
         return JSONResponse(
             status_code=200,
@@ -129,7 +169,7 @@ async def onboard_client(
                 "success": True,
                 "message": "Client onboarded successfully",
                 "client_id": client_data["client_id"],
-                "data": client_data
+                "data": client_data_serializable
             }
         )
     
@@ -145,18 +185,46 @@ async def onboard_client(
 @app.get("/api/clients")
 async def get_clients():
     """Get all onboarded clients"""
-    return {
-        "success": True,
-        "count": len(clients_db),
-        "clients": clients_db
-    }
+    clients_collection = get_clients_collection()
+    
+    if clients_collection is not None:
+        clients = await clients_collection.find({}).to_list(length=1000)
+        # Convert ObjectId to string for JSON serialization
+        for client in clients:
+            if '_id' in client:
+                client['_id'] = str(client['_id'])
+        return {
+            "success": True,
+            "count": len(clients),
+            "clients": clients
+        }
+    else:
+        # Fallback to in-memory
+        clients_db = getattr(app.state, 'clients_db', [])
+        return {
+            "success": True,
+            "count": len(clients_db),
+            "clients": clients_db
+        }
 
 @app.get("/api/client/{client_id}")
 async def get_client(client_id: str):
     """Get specific client by ID"""
-    client = next((c for c in clients_db if c["client_id"] == client_id), None)
-    if client:
-        return {"success": True, "client": client}
+    clients_collection = get_clients_collection()
+    
+    if clients_collection is not None:
+        client = await clients_collection.find_one({"client_id": client_id})
+        if client is not None:
+            if '_id' in client:
+                client['_id'] = str(client['_id'])
+            return {"success": True, "client": client}
+    else:
+        # Fallback to in-memory
+        clients_db = getattr(app.state, 'clients_db', [])
+        client = next((c for c in clients_db if c["client_id"] == client_id), None)
+        if client is not None:
+            return {"success": True, "client": client}
+    
     return JSONResponse(
         status_code=404,
         content={"success": False, "message": "Client not found"}
@@ -166,9 +234,25 @@ async def get_client(client_id: str):
 @app.get("/api/content/pending")
 async def get_pending_content(client_id: Optional[str] = Query(None)):
     """Get all pending content for approval"""
-    pending = [c for c in content_db if c.get('status') == 'pending']
-    if client_id:
-        pending = [c for c in pending if c.get('client_id') == client_id]
+    content_collection = get_content_collection()
+    
+    if content_collection is not None:
+        query = {"status": "pending"}
+        if client_id and client_id != 'all':
+            query["client_id"] = client_id
+        
+        pending = await content_collection.find(query).to_list(length=1000)
+        # Convert ObjectId to string
+        for item in pending:
+            if '_id' in item:
+                item['_id'] = str(item['_id'])
+    else:
+        # Fallback to in-memory
+        content_db = getattr(app.state, 'content_db', [])
+        pending = [c for c in content_db if c.get('status') == 'pending']
+        if client_id and client_id != 'all':
+            pending = [c for c in pending if c.get('client_id') == client_id]
+    
     return {
         "success": True,
         "count": len(pending),
@@ -178,28 +262,73 @@ async def get_pending_content(client_id: Optional[str] = Query(None)):
 @app.post("/api/content/{content_id}/approve")
 async def approve_content_endpoint(content_id: str):
     """Approve content and post to n8n"""
-    content = next((c for c in content_db if c.get('id') == content_id), None)
-    if not content:
-        return JSONResponse(
-            status_code=404,
-            content={"success": False, "message": "Content not found"}
+    content_collection = get_content_collection()
+    clients_collection = get_clients_collection()
+    
+    if content_collection is not None:
+        content = await content_collection.find_one({"id": content_id})
+        if content is None:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Content not found"}
+            )
+        
+        # Update status
+        await content_collection.update_one(
+            {"id": content_id},
+            {"$set": {
+                "status": "approved",
+                "approved_at": datetime.now().isoformat()
+            }}
         )
-    
-    # Update status
-    content['status'] = 'approved'
-    content['approved_at'] = datetime.now().isoformat()
-    
-    # Get client data
-    client = next((c for c in clients_db if c["client_id"] == content.get('client_id')), None)
-    
-    # Post to n8n
-    if client:
-        n8n_result = post_to_n8n(
-            platform=content.get('platform'),
-            content=content.get('content'),
-            client_data=client
-        )
-        content['n8n_result'] = n8n_result
+        content['status'] = 'approved'
+        content['approved_at'] = datetime.now().isoformat()
+        
+        # Get client data
+        if clients_collection is not None:
+            client = await clients_collection.find_one({"client_id": content.get('client_id')})
+        else:
+            clients_db = getattr(app.state, 'clients_db', [])
+            client = next((c for c in clients_db if c["client_id"] == content.get('client_id')), None)
+        
+        # Post to n8n
+        if client is not None:
+            n8n_result = post_to_n8n(
+                platform=content.get('platform'),
+                content=content.get('content'),
+                client_data=client
+            )
+            await content_collection.update_one(
+                {"id": content_id},
+                {"$set": {"n8n_result": n8n_result}}
+            )
+            content['n8n_result'] = n8n_result
+        
+        if '_id' in content:
+            content['_id'] = str(content['_id'])
+    else:
+        # Fallback to in-memory
+        content_db = getattr(app.state, 'content_db', [])
+        clients_db = getattr(app.state, 'clients_db', [])
+        content = next((c for c in content_db if c.get('id') == content_id), None)
+        if content is None:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Content not found"}
+            )
+        
+        content['status'] = 'approved'
+        content['approved_at'] = datetime.now().isoformat()
+        
+        client = next((c for c in clients_db if c["client_id"] == content.get('client_id')), None)
+        
+        if client is not None:
+            n8n_result = post_to_n8n(
+                platform=content.get('platform'),
+                content=content.get('content'),
+                client_data=client
+            )
+            content['n8n_result'] = n8n_result
     
     return {
         "success": True,
@@ -210,15 +339,39 @@ async def approve_content_endpoint(content_id: str):
 @app.put("/api/content/{content_id}/edit")
 async def edit_content_endpoint(content_id: str, request: dict):
     """Edit content"""
-    content = next((c for c in content_db if c.get('id') == content_id), None)
-    if not content:
-        return JSONResponse(
-            status_code=404,
-            content={"success": False, "message": "Content not found"}
-        )
+    content_collection = get_content_collection()
     
-    content['content'] = request.get('content', content['content'])
-    content['edited_at'] = datetime.now().isoformat()
+    if content_collection is not None:
+        content = await content_collection.find_one({"id": content_id})
+        if content is None:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Content not found"}
+            )
+        
+        await content_collection.update_one(
+            {"id": content_id},
+            {"$set": {
+                "content": request.get('content', content['content']),
+                "edited_at": datetime.now().isoformat()
+            }}
+        )
+        content['content'] = request.get('content', content['content'])
+        content['edited_at'] = datetime.now().isoformat()
+        if '_id' in content:
+            content['_id'] = str(content['_id'])
+    else:
+        # Fallback to in-memory
+        content_db = getattr(app.state, 'content_db', [])
+        content = next((c for c in content_db if c.get('id') == content_id), None)
+        if content is None:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Content not found"}
+            )
+        
+        content['content'] = request.get('content', content['content'])
+        content['edited_at'] = datetime.now().isoformat()
     
     return {
         "success": True,
@@ -229,8 +382,20 @@ async def edit_content_endpoint(content_id: str, request: dict):
 @app.delete("/api/content/{content_id}")
 async def delete_content_endpoint(content_id: str):
     """Delete content"""
-    global content_db
-    content_db = [c for c in content_db if c.get('id') != content_id]
+    content_collection = get_content_collection()
+    
+    if content_collection is not None:
+        result = await content_collection.delete_one({"id": content_id})
+        if result.deleted_count == 0:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Content not found"}
+            )
+    else:
+        # Fallback to in-memory
+        if hasattr(app.state, 'content_db'):
+            app.state.content_db = [c for c in app.state.content_db if c.get('id') != content_id]
+    
     return {
         "success": True,
         "message": "Content deleted"
@@ -239,33 +404,80 @@ async def delete_content_endpoint(content_id: str):
 @app.post("/api/content/{content_id}/regenerate")
 async def regenerate_content_endpoint(content_id: str, request: dict):
     """Regenerate content"""
-    content = next((c for c in content_db if c.get('id') == content_id), None)
-    if not content:
-        return JSONResponse(
-            status_code=404,
-            content={"success": False, "message": "Content not found"}
-        )
+    content_collection = get_content_collection()
+    clients_collection = get_clients_collection()
     
-    client = next((c for c in clients_db if c["client_id"] == content.get('client_id')), None)
-    if not client:
+    if content_collection is not None:
+        content = await content_collection.find_one({"id": content_id})
+        if content is None:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Content not found"}
+            )
+        
+        if clients_collection is not None:
+            client = await clients_collection.find_one({"client_id": content.get('client_id')})
+        else:
+            clients_db = getattr(app.state, 'clients_db', [])
+            client = next((c for c in clients_db if c["client_id"] == content.get('client_id')), None)
+    else:
+        # Fallback to in-memory
+        content_db = getattr(app.state, 'content_db', [])
+        clients_db = getattr(app.state, 'clients_db', [])
+        content = next((c for c in content_db if c.get('id') == content_id), None)
+        if content is None:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Content not found"}
+            )
+        
+        client = next((c for c in clients_db if c["client_id"] == content.get('client_id')), None)
+    
+    if client is None:
         return JSONResponse(
             status_code=404,
             content={"success": False, "message": "Client not found"}
         )
     
     try:
-        new_content = generate_content(
+        # Get existing content for regeneration
+        existing_content = content.get('content', '')
+        platform = request.get('platform', content.get('platform'))
+        content_type = request.get('content_type', content.get('content_type'))
+        improvement_focus = request.get('improvement_focus', None)
+        
+        # Regenerate content with improved prompt
+        new_content = regenerate_content(
             client_data=client,
-            platform=request.get('platform', content.get('platform')),
-            content_type=request.get('content_type', content.get('content_type'))
+            platform=platform,
+            content_type=content_type,
+            existing_content=existing_content,
+            improvement_focus=improvement_focus
         )
+        
+        # Update content with regenerated version
+        regeneration_count = content.get('regeneration_count', 0) + 1
+        
+        if content_collection is not None:
+            await content_collection.update_one(
+                {"id": content_id},
+                {"$set": {
+                    "content": new_content,
+                    "regenerated_at": datetime.now().isoformat(),
+                    "regeneration_count": regeneration_count
+                }}
+            )
         
         content['content'] = new_content
         content['regenerated_at'] = datetime.now().isoformat()
+        content['regeneration_count'] = regeneration_count
+        
+        if '_id' in content:
+            content['_id'] = str(content['_id'])
         
         return {
             "success": True,
-            "message": "Content regenerated",
+            "message": "Content regenerated successfully",
             "data": content
         }
     except Exception as e:
@@ -308,13 +520,28 @@ async def get_analytics(time_range: str = Query("7d")):
 @app.get("/api/dashboard/stats")
 async def get_dashboard_stats():
     """Get dashboard statistics"""
-    pending_content = len([c for c in content_db if c.get('status') == 'pending'])
-    approved_content = len([c for c in content_db if c.get('status') == 'approved'])
-    active_campaigns = len([c for c in campaigns_db if c.get('status') == 'active'])
+    clients_collection = get_clients_collection()
+    content_collection = get_content_collection()
+    campaigns_collection = get_campaigns_collection()
+    
+    if clients_collection is not None and content_collection is not None and campaigns_collection is not None:
+        total_clients = await clients_collection.count_documents({})
+        pending_content = await content_collection.count_documents({"status": "pending"})
+        approved_content = await content_collection.count_documents({"status": "approved"})
+        active_campaigns = await campaigns_collection.count_documents({"status": "active"})
+    else:
+        # Fallback to in-memory
+        clients_db = getattr(app.state, 'clients_db', [])
+        content_db = getattr(app.state, 'content_db', [])
+        campaigns_db = getattr(app.state, 'campaigns_db', [])
+        total_clients = len(clients_db)
+        pending_content = len([c for c in content_db if c.get('status') == 'pending'])
+        approved_content = len([c for c in content_db if c.get('status') == 'approved'])
+        active_campaigns = len([c for c in campaigns_db if c.get('status') == 'active'])
     
     return {
         "success": True,
-        "totalClients": len(clients_db),
+        "totalClients": total_clients,
         "pendingContent": pending_content,
         "approvedContent": approved_content,
         "activeCampaigns": active_campaigns
@@ -324,20 +551,51 @@ async def get_dashboard_stats():
 @app.get("/api/campaigns")
 async def get_campaigns():
     """Get all campaigns"""
-    return {
-        "success": True,
-        "count": len(campaigns_db),
-        "campaigns": campaigns_db
-    }
+    campaigns_collection = get_campaigns_collection()
+    
+    if campaigns_collection is not None:
+        campaigns = await campaigns_collection.find({}).to_list(length=1000)
+        for campaign in campaigns:
+            if '_id' in campaign:
+                campaign['_id'] = str(campaign['_id'])
+        return {
+            "success": True,
+            "count": len(campaigns),
+            "campaigns": campaigns
+        }
+    else:
+        # Fallback to in-memory
+        campaigns_db = getattr(app.state, 'campaigns_db', [])
+        return {
+            "success": True,
+            "count": len(campaigns_db),
+            "campaigns": campaigns_db
+        }
 
 @app.post("/api/campaigns")
 async def create_campaign_endpoint(campaign: dict):
     """Create a new campaign"""
+    campaign_uuid = str(uuid.uuid4())
+    clients_collection = get_clients_collection()
+    campaigns_collection = get_campaigns_collection()
+    
+    # Get client name
+    client_name = "Unknown"
+    if clients_collection is not None:
+        client = await clients_collection.find_one({"client_id": campaign.get("client_id")})
+        if client is not None:
+            client_name = client.get("company_name", "Unknown")
+    else:
+        clients_db = getattr(app.state, 'clients_db', [])
+        client = next((c for c in clients_db if c["client_id"] == campaign.get("client_id")), None)
+        if client is not None:
+            client_name = client.get("company_name", "Unknown")
+    
     campaign_data = {
-        "id": f"CAMPAIGN_{len(campaigns_db) + 1:04d}",
+        "id": campaign_uuid,
         "name": campaign.get("name"),
         "client_id": campaign.get("client_id"),
-        "client_name": next((c["company_name"] for c in clients_db if c["client_id"] == campaign.get("client_id")), "Unknown"),
+        "client_name": client_name,
         "platform": campaign.get("platform"),
         "budget": campaign.get("budget"),
         "start_date": campaign.get("start_date"),
@@ -350,28 +608,64 @@ async def create_campaign_endpoint(campaign: dict):
         "ctr": 0,
         "created_at": datetime.now().isoformat()
     }
-    campaigns_db.append(campaign_data)
+    
+    if campaigns_collection is not None:
+        await campaigns_collection.insert_one(campaign_data)
+    else:
+        # Fallback to in-memory
+        if not hasattr(app.state, 'campaigns_db'):
+            app.state.campaigns_db = []
+        app.state.campaigns_db.append(campaign_data)
+    
+    # Convert ObjectId to string for JSON serialization
+    campaign_data_serializable = convert_objectid_to_str(campaign_data)
+    
     return {
         "success": True,
         "message": "Campaign created",
-        "data": campaign_data
+        "data": campaign_data_serializable
     }
 
 @app.put("/api/campaigns/{campaign_id}")
 async def update_campaign_endpoint(campaign_id: str, campaign: dict):
     """Update a campaign"""
-    campaign_item = next((c for c in campaigns_db if c.get('id') == campaign_id), None)
-    if not campaign_item:
-        return JSONResponse(
-            status_code=404,
-            content={"success": False, "message": "Campaign not found"}
+    campaigns_collection = get_campaigns_collection()
+    
+    if campaigns_collection is not None:
+        campaign_item = await campaigns_collection.find_one({"id": campaign_id})
+        if campaign_item is None:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Campaign not found"}
+            )
+        
+        update_data = {k: v for k, v in campaign.items() if k != 'id'}
+        update_data['updated_at'] = datetime.now().isoformat()
+        
+        await campaigns_collection.update_one(
+            {"id": campaign_id},
+            {"$set": update_data}
         )
+        
+        campaign_item.update(update_data)
+        if '_id' in campaign_item:
+            campaign_item['_id'] = str(campaign_item['_id'])
+    else:
+        # Fallback to in-memory
+        campaigns_db = getattr(app.state, 'campaigns_db', [])
+        campaign_item = next((c for c in campaigns_db if c.get('id') == campaign_id), None)
+        if campaign_item is None:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Campaign not found"}
+            )
+        
+        for key, value in campaign.items():
+            if key != 'id':
+                campaign_item[key] = value
+        
+        campaign_item['updated_at'] = datetime.now().isoformat()
     
-    for key, value in campaign.items():
-        if key != 'id':
-            campaign_item[key] = value
-    
-    campaign_item['updated_at'] = datetime.now().isoformat()
     return {
         "success": True,
         "message": "Campaign updated",
@@ -381,8 +675,20 @@ async def update_campaign_endpoint(campaign_id: str, campaign: dict):
 @app.delete("/api/campaigns/{campaign_id}")
 async def delete_campaign_endpoint(campaign_id: str):
     """Delete a campaign"""
-    global campaigns_db
-    campaigns_db = [c for c in campaigns_db if c.get('id') != campaign_id]
+    campaigns_collection = get_campaigns_collection()
+    
+    if campaigns_collection is not None:
+        result = await campaigns_collection.delete_one({"id": campaign_id})
+        if result.deleted_count == 0:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "Campaign not found"}
+            )
+    else:
+        # Fallback to in-memory
+        if hasattr(app.state, 'campaigns_db'):
+            app.state.campaigns_db = [c for c in app.state.campaigns_db if c.get('id') != campaign_id]
+    
     return {
         "success": True,
         "message": "Campaign deleted"

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import './Dashboard.css';
 import { getDashboardStats } from '../services/api';
+import BackButton from '../components/BackButton';
+import { useToastContext } from '../context/ToastContext';
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -11,6 +13,7 @@ const Dashboard = () => {
     activeCampaigns: 0
   });
   const [loading, setLoading] = useState(true);
+  const toast = useToastContext();
 
   useEffect(() => {
     loadStats();
@@ -22,6 +25,7 @@ const Dashboard = () => {
       setStats(data);
     } catch (error) {
       console.error('Error loading stats:', error);
+      toast.error('Failed to load dashboard statistics');
     } finally {
       setLoading(false);
     }
@@ -37,6 +41,7 @@ const Dashboard = () => {
   return (
     <div className="dashboard-page">
       <div className="container-wide">
+        <BackButton />
         <div className="dashboard-header">
           <h1>Dashboard</h1>
           <p>Welcome back! Here's what's happening with your marketing automation.</p>

@@ -171,14 +171,23 @@ export const deleteContent = async (contentId) => {
 /**
  * Regenerate content
  */
-export const regenerateContent = async (contentId, platform, contentType) => {
+export const regenerateContent = async (contentId, platform, contentType, improvementFocus = null) => {
   try {
+    const requestBody = { 
+      platform, 
+      content_type: contentType 
+    };
+    
+    if (improvementFocus) {
+      requestBody.improvement_focus = improvementFocus;
+    }
+    
     const response = await fetch(`${API_BASE_URL}/api/content/${contentId}/regenerate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ platform, content_type: contentType })
+      body: JSON.stringify(requestBody)
     });
     const data = await response.json();
     if (!data.success) {
